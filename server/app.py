@@ -1,10 +1,13 @@
 import datetime
-from flask import Flask
+from flask import Flask, request
+from flask.json import jsonify
 from flask_graphql import GraphQLView
 from flask_cors import CORS
+from flask_restful import Api, Resource
 import graphene
 
 app = Flask(__name__)
+api = Api(app)
 CORS(app)
 
 loans = [
@@ -89,16 +92,17 @@ class UpdateLoanPayment(graphene.Mutation):
     class Arguments:
         loan_id = graphene.Int(required=True)
         amount = graphene.Float(required=True)
-        payment_date = graphene.Date(default_value=datetime.date.today())
+        payment_date = graphene.Date(default_value=datetime.date.today()) #automatically set to current date
     
     loan_payment = graphene.Field(LoanPayments)
     success = graphene.Boolean()
     message = graphene.String()
 
     def mutate(self, info, loan_id, amount=None, payment_date=None):
-        payment = next((p for p in loan_payments if p['loan_id'] == loan_id), None)
-        currentLoan = next((l for l in loans if l['id'] == loan_id), None)
+        payment = next((p for p in loan_payments if p['loan_id'] == loan_id), None) #find existing repayment record for loan with provided ID
+        currentLoan = next((l for l in loans if l['id'] == loan_id), None) #find corresponding loan with provided ID
 
+        #Return error if loan with provided ID is not in existing loans array
         if not currentLoan:
             return UpdateLoanPayment(
                 success=False,
@@ -106,6 +110,12 @@ class UpdateLoanPayment(graphene.Mutation):
                 loan_payment=None
             )
 
+        '''
+            *create new payment record if loan exists but there is no existing payment record
+            *update existing payment record if found
+            **ideally loans can have multiple repayments, current implementation only allows one payment record per loan for simplicity**
+        '''
+        
         if not payment:
 
             loan_payments.append({
@@ -130,6 +140,30 @@ class UpdateLoanPayment(graphene.Mutation):
             loan_payment=payment
         )
 
+# Use flask-restful to create a REST endpoint for updating loan payments
+class RestUpdateLoanPayment(Resource):
+    #define post method to handle POST requests
+    def post(self):
+        #Get data from request payload
+        data = request.json
+        loan_id = data.get("loan_id")
+        amount = data.get("amount")  # to be used later after enhancement of payments array
+
+        #utilise already created mutation to handle the update logic
+        result = UpdateLoanPayment.mutate(None, None, loan_id=loan_id, amount=amount)
+
+        #determine response payload to be sent based on result of update operation
+        if result.success:
+            loan_payment_data = {
+                "id": result.loan_payment["id"],
+                "loan_id": result.loan_payment["loan_id"],
+                "payment_date": result.loan_payment["payment_date"]
+            }
+            #jsonify not called since flask-restful already handles JSON serialisation
+            return {"success": True, "message": result.message, "loan_payment": loan_payment_data}, 200
+        else:
+            return {"success": False, "message": result.message}, 400
+
 
 class Query(graphene.ObjectType):
     loans = graphene.List(ExistingLoans)
@@ -148,6 +182,9 @@ class Mutation(graphene.ObjectType):
 
 schema = graphene.Schema(query=Query, mutation=Mutation)
 
+#associate class with update loan payment endpoint
+api.add_resource(RestUpdateLoanPayment, '/rest-update-loan-payment')
+
 
 app.add_url_rule(
     "/graphql", view_func=GraphQLView.as_view("graphql", schema=schema, graphiql=True)
@@ -157,6 +194,24 @@ app.add_url_rule(
 @app.route("/")
 def home():
     return "Welcome to the Loan Application API"
+
+
+# alternate implementation using just flask route for updating loan payment
+@app.route("/update-loan-payment", methods=["POST"])
+def update_loan_payment():
+    #grab data from request payload
+    data = request.json
+    loan_id = data.get("loan_id")
+    amount = data.get("amount")  # to be used later
+
+    #utilise already created mutation to handle the update logic
+    result = UpdateLoanPayment.mutate(None, None, loan_id=loan_id, amount=amount)
+
+    #determine response payload to be sent based on result of update operation
+    if result.success:
+        return jsonify({"success": True, "message": result.message, "loan_payment": result.loan_payment}), 200
+    else:
+        return jsonify({"success": False, "message": result.message}), 400
 
 
 if __name__ == "__main__":
