@@ -15,13 +15,15 @@ type LoanPaymentsRefresProps = {
 }
 
 /**Pass refresh key to ensure that the loans list is refreshed on successful form submissions */
-export const LoanPayments = ({refreshFlag = 0}: LoanPaymentsRefresProps) => {
+export const LoanPayments = ({ refreshFlag = 0 }: LoanPaymentsRefresProps) => {
 
     const [payments, setPayments] = useState<LoanPayment[]>([]);
+    const [loading, setLoading] = useState<boolean>(false);
 
     /**Fetch loan payment entries from the backend */
     const getLoanPayments = () => {
 
+        setLoading(true);
         fetch('http://localhost:2024/graphql', {
             method: 'POST',
             headers: {
@@ -46,7 +48,12 @@ export const LoanPayments = ({refreshFlag = 0}: LoanPaymentsRefresProps) => {
             .then((response) => response.json())
             .then((data) => {
                 // console.log('Loan Payments::::', data);
-                setPayments(data.data.loans);
+                setLoading(false);
+                if (data.data.loans) {
+                    setPayments(data.data.loans);
+                } else {
+                    setPayments([]);
+                }
             });
     }
 
@@ -71,6 +78,7 @@ export const LoanPayments = ({refreshFlag = 0}: LoanPaymentsRefresProps) => {
     return (
         <div>
             {/* Loan entries table */}
+            
             <table className="loan-payments-table">
                 <thead>
                     <tr>
@@ -84,17 +92,25 @@ export const LoanPayments = ({refreshFlag = 0}: LoanPaymentsRefresProps) => {
                     </tr>
                 </thead>
                 <tbody>
-                    {payments.map((payment) => (
-                        <tr key={payment.id}>
-                            <td>{payment.id}</td>
-                            <td>{payment.name}</td>
-                            <td>{payment.principal}</td>
+                    {loading ? (
+                        <tr>
+                            <td colSpan={7}>
+                                <div className="loader"></div>
+                            </td>
+                        </tr>
+                    ) : (
+                        payments.map((payment) => (
+                            <tr key={payment.id}>
+                                <td>{payment.id}</td>
+                                <td>{payment.name}</td>
+                                <td>{payment.principal}</td>
                             <td>{payment.interestRate}</td>
                             <td>{payment.dueDate}</td>
                             <td>{payment.paymentDate ?? '-'}</td>
                             <td className={`${getLoanStatus(payment.status)}`}>{payment.status}</td>
                         </tr>
-                    ))}
+                    ))
+                    )}
                 </tbody>
             </table>
         </div>
