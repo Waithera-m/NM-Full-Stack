@@ -94,7 +94,7 @@ button:focus-visible {
 }
 
 .loader {
-  width: 100px;
+  width: 60px;
   aspect-ratio: 1;
   border-radius: 50%;
   background: #514b82;

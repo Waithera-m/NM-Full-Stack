@@ -98,9 +98,12 @@ class UpdateLoanPayment(graphene.Mutation):
     success = graphene.Boolean()
     message = graphene.String()
 
-    def mutate(self, info, loan_id, amount=None, payment_date=None):
+    def mutate(self, info, loan_id, amount=None, payment_date=datetime.date.today()):
         payment = next((p for p in loan_payments if p['loan_id'] == loan_id), None) #find existing repayment record for loan with provided ID
         currentLoan = next((l for l in loans if l['id'] == loan_id), None) #find corresponding loan with provided ID
+
+        # print("current loan:", currentLoan)
+        # print("existing payment record:", payment)
 
         #Return error if loan with provided ID is not in existing loans array
         if not currentLoan:
@@ -123,6 +126,8 @@ class UpdateLoanPayment(graphene.Mutation):
                 "loan_id": loan_id,
                 "payment_date": payment_date
             })
+
+            # print("New payment record created:", loan_payments[-1])
             return UpdateLoanPayment(
                 success=True, 
                 message="Loan payment record created successfully.",
@@ -133,6 +138,8 @@ class UpdateLoanPayment(graphene.Mutation):
             payment['loan_id'] = loan_id
         if payment_date is not None:
             payment['payment_date'] = payment_date
+
+        # print("Existing payment record updated to:", payment)
 
         return UpdateLoanPayment(
             success=True,
@@ -154,13 +161,8 @@ class RestUpdateLoanPayment(Resource):
 
         #determine response payload to be sent based on result of update operation
         if result.success:
-            loan_payment_data = {
-                "id": result.loan_payment["id"],
-                "loan_id": result.loan_payment["loan_id"],
-                "payment_date": result.loan_payment["payment_date"]
-            }
             #jsonify not called since flask-restful already handles JSON serialisation
-            return {"success": True, "message": result.message, "loan_payment": loan_payment_data}, 200
+            return {"success": True, "message": result.message}, 200
         else:
             return {"success": False, "message": result.message}, 400
 
