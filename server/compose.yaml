@@ -1,0 +1,16 @@
+name: numida
+
+services:
+  server:
+    build:
+      context: .
+    ports:
+      - 2024:5000
+
+  test:
+    build:
+      context: .
+    command: pytest -q
+    user: root
+    volumes:
+      - .:/app
